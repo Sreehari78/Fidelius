@@ -1,38 +1,68 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 import os
-# from chat import chatopenai, chatlocal
+from pdfhandler import predictpdfheaders, maskobfpdf
 from csvhandler import predictheaders, maskobfcsv
+from flask_cors import CORS
 
 app = Flask(__name__)
 
-@app.route("/getcsvheader", methods=['GET', 'POST'])
+# Allow CORS for all domains, origins and credentials
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+@app.route("/getcsvheader", methods=['POST', 'OPTIONS'])
 def getcsvheader():
-    file_path = request.get_json()['filePath']
-    
-    # Construct the full path correctly
-    full_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', file_path)
+    if request.method == "OPTIONS":
+        return build_cors_preflight_response()
+    else:
+        return handle_post_request()
 
-    try:
-        temp = predictheaders(full_path)[0]['generated_text']
-        headers = [line.strip() for line in temp.splitlines() if line.strip()]
-        print(headers)
-        return jsonify({"headers": headers})
-    except FileNotFoundError:
-        return jsonify({"error": "File not found"}), 404
-
-@app.route("/maskobfcsv", methods=['GET', 'POST'])
+@app.route("/maskobfcsv", methods=['POST', 'OPTIONS'])
 def maskcsv():
-    input = request.get_json()
-    print(input)
+    if request.method == "OPTIONS":
+        return build_cors_preflight_response()
     
-    # Construct the full path for masking
-    full_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', input['filePath'])
+    input_data = request.get_json()
+    full_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'output.csv')
+    output = maskobfcsv(input_data)
+    print(output)
+    return jsonify({"output": "csv"})
 
+# Handle CORS preflight response
+def build_cors_preflight_response():
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+    response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+    return response
+
+@app.route("/getpdfheader", methods=['GET', 'POST'])
+def getpdfheader():
+    pfile_path = request.get_json()['filePath']
+    full_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', pfile_path)
+    headers = predictpdfheaders(full_path)
+    return jsonify({"headers": headers})
+
+@app.route("/maskobfpdf", methods=['GET', 'POST'])
+def maskpdf():
+    input= request.get_json()
+    print(input)
+    maskobfpdf(input)
+    return jsonify({"headers": "pdf"})
+
+# Handle POST request
+def handle_post_request():
+    data = request.get_json()
+    headers = process_csv_headers(data['filePath'])  # Example function
+    return jsonify({"headers": headers})
+
+# Example function to process the CSV headers
+def process_csv_headers(file_path):
     try:
-        maskobfcsv(full_path)
-        return jsonify({"message": "File masked successfully"})
+        with open(file_path, 'r') as file:
+            headers = file.readline().strip().split(',')
+        return headers
     except FileNotFoundError:
-        return jsonify({"error": "File not found"}), 404
+        return "File not found", 404
 
 if __name__ == "__main__":
     app.run(debug=True)

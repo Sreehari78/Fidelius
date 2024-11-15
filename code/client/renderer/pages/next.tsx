@@ -3,10 +3,11 @@
 import React, { useState } from "react";
 import { useDropzone, DropzoneOptions } from "react-dropzone";
 import { Upload, Check, X, Loader2 } from "lucide-react";
+import { useRouter } from 'next/navigation'
 
 interface HeaderControl {
   visible: boolean;
-  mode: "male" | "female" | null;
+  mode: "mask" | "obfuscate" | null;
   prompt: string;
 }
 
@@ -14,12 +15,12 @@ interface SubmitData {
   fileName: string;
   headers: {
     name: string;
-    mode: "male" | "female" | null;
+    mode: "mask" | "obfuscate" | null;
     prompt: string;
   }[];
 }
 
-export default function HeaderControlTable() {
+export default function HeaderControl() {
   const [fileName, setFileName] = useState<string>("");
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -28,19 +29,35 @@ export default function HeaderControlTable() {
   const [headerControls, setHeaderControls] = useState<Record<string, HeaderControl>>({});
   const [submitResponse, setSubmitResponse] = useState<string | null>(null);
 
+  const router = useRouter();
+  
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
+    const fileType = file.name.split('.').pop()?.toLowerCase();
     setFileName(file.name);
     setIsUploading(true);
-    console.log("File:", file);
+
     try {
-      const response = await fetch("http://localhost:5000/getcsvheader", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ filePath: file.path }),
-      });
+      let response;
+      if (fileType === 'csv') {
+        response = await fetch("http://localhost:5000/getcsvheader", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ filePath: file.path }),
+        });
+      } else if (fileType === 'pdf') {
+        response = await fetch("http://localhost:5000/getpdfheader", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ filePath: file.path }),
+        });
+      } else {
+        throw new Error("Unsupported file type");
+      }
 
       if (!response.ok) {
         throw new Error("Network response was not ok");
@@ -73,7 +90,7 @@ export default function HeaderControlTable() {
     }));
   };
 
-  const setMode = (columnId: string, mode: "male" | "female" | null) => {
+  const setMode = (columnId: string, mode: "mask" | "obfuscate" | null) => {
     setHeaderControls((prev) => ({
       ...prev,
       [columnId]: { ...prev[columnId], mode },
@@ -95,13 +112,13 @@ export default function HeaderControlTable() {
         name: key.replace(/^\d+\.\s/, ""), // Remove numbering
         mode: control.mode,
         prompt: control.prompt,
-      }))
-      .filter((header) => header.mode !== null || header.prompt !== "");
+      }));
 
     const output: SubmitData = {
-      fileName,
+      fileName: fileName,
       headers: selectedHeaders,
     };
+    console.log("Output:", selectedHeaders);
     setJsonOutput(JSON.stringify(output, null, 2));
 
     try {
@@ -116,9 +133,13 @@ export default function HeaderControlTable() {
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
-
       const result = await response.json();
-      setSubmitResponse(JSON.stringify(result, null, 2));
+      setSubmitResponse(result["output"]);
+      if (result["output"] === "csv")
+        router.push("/outputCsv"); // Redirect to the /outputCsv page
+      else if (result["output"] === "pdf")
+        router.push("/outputPdf"); // Redirect to the /outputPdf page
+
     } catch (error) {
       console.error("Error:", error);
       setSubmitResponse("Error submitting data to server");
@@ -126,7 +147,6 @@ export default function HeaderControlTable() {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className='container mx-auto p-4 max-w-4xl'>
       <header className='mb-8 text-center'>
@@ -217,27 +237,27 @@ export default function HeaderControlTable() {
                         </button>
                       </td>
                       <td className='px-4 py-2 text-sm text-gray-200'>
-                        {column.replace(/^\d+\.\s/, "")}
+                        {/* {column.replace(/^\d+\.\s/, "")} */}
                       </td>
                       <td className='px-4 py-2 text-sm text-gray-200'>
                         <div className='flex items-center space-x-4'>
                           <label className='flex items-center'>
                             <input
                               type='radio'
-                              checked={control.mode === "male"}
-                              onChange={() => setMode(column, "male")}
+                              checked={control.mode === "mask"}
+                              onChange={() => setMode(column, "mask")}
                               className='form-radio h-4 w-4 text-blue-600'
                             />
-                            <span className='ml-2'>Male</span>
+                            <span className='ml-2'>Mask</span>
                           </label>
                           <label className='flex items-center'>
                             <input
                               type='radio'
-                              checked={control.mode === "female"}
-                              onChange={() => setMode(column, "female")}
+                              checked={control.mode === "obfuscate"}
+                              onChange={() => setMode(column, "obfuscate")}
                               className='form-radio h-4 w-4 text-blue-600'
                             />
-                            <span className='ml-2'>Female</span>
+                            <span className='ml-2'>Obfuscate</span>
                           </label>
                         </div>
                       </td>

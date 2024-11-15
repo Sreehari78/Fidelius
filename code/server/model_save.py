@@ -13,7 +13,7 @@ print(api_token)
 # Authenticate with Hugging Face
 login(token=api_token)
 
-model_id = "meta-llama/Llama-3.2-1B"
+model_id = "meta-llama/Llama-3.2-3B"
 
 # Initialize the pipeline
 pipe = pipeline(
@@ -23,5 +23,5 @@ pipe = pipeline(
     device_map="auto"
 )
 
-# Save the pipeline to a directory
+# uncomment the following line to Save the pipeline to a directory (DO IT ONLY ONCE) 👇
 pipe.save_pretrained('./saved_llama_model')
