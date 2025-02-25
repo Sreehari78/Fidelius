@@ -1,0 +1,103 @@
+# Node.js / Next.js
+
+# Dependency directories
+node_modules/
+.npm
+
+# Next.js build output
+.next/
+out/
+dist/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Operating system files
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Miscellaneous
+.pnp.*
+.cache/
+coverage/
+
+# Python
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual Environments
+# Ignore virtual environments except the 'venv' directory
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# Include specific folders
+venv/
+en_core_web_sm/
+vosk-model-small-en-us-0.15/
+
+# Flask
+instance/
+.webassets-cache
+
+# Logs and debug files
+*.log
+
+# Miscellaneous
+*.swp
+.sass-cache/
+.idea/
+.vscode/
+__pycache__/
+Thumbs.db
+ehthumbs.db
