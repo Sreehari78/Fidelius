@@ -85,6 +85,7 @@ venv.bak/
 venv/
 en_core_web_sm/
 vosk-model-small-en-us-0.15/
+vosk-model-en-us-0.42-gigaspeech/
 
 # Flask
 instance/
