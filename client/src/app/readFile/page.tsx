@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useDropzone, DropzoneOptions } from "react-dropzone";
+import { useState } from "react";
+import { useDropzone, type DropzoneOptions } from "react-dropzone";
 import { Upload, Check, X, Loader2, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -35,6 +35,11 @@ export default function HeaderControl() {
 
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
+    console.log("Selected file:", file);
+    console.log("File path:", file.path);
+    console.log("File name:", file.name);
+    console.log("File size:", file.size);
+    console.log("File type:", file.type);
     const fileType = file.name.split(".").pop()?.toLowerCase();
     setFileName(file.name);
     setIsUploading(true);
