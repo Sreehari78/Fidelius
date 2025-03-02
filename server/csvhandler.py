@@ -4,27 +4,43 @@ import pandas as pd
 import json
 import os
 
-csv_output_file = 'D:\\Softwares\\Codes\\FideliusTest\\temp\\temp\\code\\data\\output.csv'
-
 def predictheaders(file_path):
-    with open(file_path, mode='r') as file:
-        reader = csv.reader(file)
-        datatypes = next(reader)
-    print(datatypes)
-    return [' ']+datatypes
+    try:
+        with open(file_path, mode='r') as file:
+            reader = csv.reader(file)
+            datatypes = next(reader)
+        print(f"Headers from {file_path}: {datatypes}")
+        return [' '] + datatypes
+    except Exception as e:
+        raise Exception(f"Error reading CSV headers from {file_path}: {str(e)}")
 
 def maskobfcsv(json_data):
     filename = json_data['fileName']
-    df = pd.read_csv("D:\\Softwares\\Codes\\FideliusTest\\temp\\temp\\code\\data\\Ecommerce-Customers.csv")
-    csv_output_file = 'D:\\Softwares\\Codes\\FideliusTest\\temp\\temp\\code\\data\\output.csv'
-
+    input_path = json_data.get('inputPath', '')  # Get inputPath from JSON
+    if not input_path:
+        input_path = os.path.join('..', 'data', filename)  # Fallback to default
+    else:
+        input_path = os.path.join(input_path, filename)  # Use provided inputPath
+    
+    # Validate input file exists
+    if not os.path.exists(input_path):
+        raise Exception(f"Input file not found: {input_path}")
+    
+    df = pd.read_csv(input_path)
+    
+    # Generate output filename using outputPath if provided
+    output_path = json_data.get('outputPath', '')
+    base_name = os.path.splitext(filename)[0]
+    output_filename = f"{base_name}-output.csv"
+    csv_output_file = os.path.join(
+        output_path if output_path else os.path.join('..', 'client', 'public'),
+        output_filename
+    )
+    
     updated_df = df.copy()
-
-    # Create a copy of the original headers
     og_headers = set(df.columns.tolist())
     column_info = json_data['headers']
 
-    # Loop over each header info from the JSON
     for col in column_info:
         column_name = col['name']
         mode = col['mode']
@@ -32,13 +48,11 @@ def maskobfcsv(json_data):
 
         if column_name in og_headers:
             if mode == "mask":
-                print("Masking the data in the csv file")
+                print(f"Masking the data in column {column_name}")
                 updated_df[column_name] = df[column_name].apply(lambda x: '#' * len(str(x)))
-                print("Data masked")
-            
-
+                print(f"Data masked for {column_name}")
             elif mode == "obfuscate":
-                print("Obfuscating the data in the csv file")
+                print(f"Obfuscating the data in column {column_name}")
                 csvCol = df[column_name]
                 data_string = ','.join(csvCol.astype(str))
                 modified_data_string = chatlocal(instruction, data_string)
@@ -48,7 +62,8 @@ def maskobfcsv(json_data):
                     updated_df.loc[x, column_name] = modified_chunk[x]
     
     updated_df = updated_df.iloc[1:]
-    newPath = os.path.join(os.path.dirname(__file__), '..', 'client', 'public', 'output.csv')
-    updated_df.to_csv(newPath, index=False)
+    os.makedirs(os.path.dirname(csv_output_file), exist_ok=True)
     updated_df.to_csv(csv_output_file, index=False)
+    
+    print(f"Output saved to: {csv_output_file}")
     return csv_output_file

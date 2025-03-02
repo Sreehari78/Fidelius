@@ -65,11 +65,11 @@ def maskobfpdf(json_data):
         original_value = data_dict.get(name, "")
         
         # Pass the value through the chatlocal() function to modify it
-        if mode=='male':
+        if mode=='obfuscate':
             systemprompt="You are a tool that can modify the following data. Return the modified comma seperated values only and no other texts or information."
             modified_value = chatlocal(systemprompt,original_value+prompt)
             print(modified_value)
-        elif mode=='female':
+        elif mode=='mask':
             modified_value = "#" * len(original_value)
 
         # Store the modified value in a new dictionary

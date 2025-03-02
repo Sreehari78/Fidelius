@@ -63,7 +63,7 @@ def predictdata(file_path):
 
 
 
-file_path="D:\\Pranav\\Repository\\DataMasking\\Server\\Ecommerce Customers.csv"
+file_path="C:\\Z_Work\\Project\\Fidelius\\data\\Ecommerce-Customers.csv"
 filetype=getfiletype(file_path)
 print(filetype)
 if filetype=="CSV":
