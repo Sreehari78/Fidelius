@@ -9,3 +9,6 @@ Flask_Cors>=5.0
 PyPDF2
 requests
 pandas
+pydub 
+vosk 
+argparse
