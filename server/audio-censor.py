@@ -1,310 +1,262 @@
 #!/usr/bin/env python3
-
 import argparse
 import csv
+import json
+import os
+import re
+from typing import List, Tuple
 from pydub import AudioSegment
 from pydub.generators import Sine
-import wave
-import os
-from datetime import datetime
 from vosk import Model, KaldiRecognizer, SetLogLevel
-import json
+import whisper
+from chat import chatlocal  # Custom local LLM API for PII detection
 
-# Function to transcribe audio to text with timestamps using Vosk
-def transcribe_audio_with_timestamps(audio_segment, model_path, verbose=False):
-    temp_filename = "temp.wav"
-    # Ensure correct format: 16kHz, mono, 16-bit PCM
-    audio_segment = audio_segment.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-
-    # Debug: Check the duration and frame count of the audio segment before exporting
-    print(f"Audio segment before export: duration={len(audio_segment)} ms, frame_count={audio_segment.frame_count()}")
-
-    if len(audio_segment) == 0:
-        print("Error: Audio segment is empty before export.")
-        return "", []
-
-    audio_segment.export(temp_filename, format="wav")
-    print(f"Exported audio to {temp_filename}")
-
-    # Verify the content and properties of the temp.wav file
-    with wave.open(temp_filename, 'rb') as wf:
-        channels = wf.getnchannels()
-        sample_width = wf.getsampwidth()
-        frame_rate = wf.getframerate()
-        frames = wf.getnframes()
-        print(f"temp.wav properties: channels={channels}, sample_width={sample_width}, frame_rate={frame_rate}, frames={frames}")
-
-    if frames == 0:
-        print("Error: Exported temp.wav file has zero frames.")
-        return "", []
-
-    model = Model(model_path)
-    recognizer = KaldiRecognizer(model, 16000) # 16kHz
-    recognizer.SetWords(True)  # Ensure recognizer is set to capture word-level timestamps
-
-    # Read the audio file
-    wf = open(temp_filename, "rb")
-    wf.read(44)  # Skip the WAV's RIFF header which is always 44 bytes
-
-    results = []
-    while True:
-        data = wf.read(4000)
-        if len(data) == 0:
-            break
-        if verbose:
-            print(f"Read {len(data)} bytes from WAV file, first 20 bytes: {data[:20]}")  # Debug
-        if recognizer.AcceptWaveform(data):
-            results.append(json.loads(recognizer.Result()))
-        else:
-            results.append(json.loads(recognizer.PartialResult()))
-
-    results.append(json.loads(recognizer.FinalResult()))
-    wf.close()
-    os.remove(temp_filename)
-
-    transcript = ""
-    words = []
-    for result in results:
-        if "text" in result:
-            transcript += result["text"] + " "
-        if "result" in result:
-            words.extend(result["result"])
-
-    return transcript.strip(), words
-
-# Function to find bad words and their timestamps in the transcribed text
-def find_bad_word_timestamps(words, bad_words, verbose=False):
-    bad_word_timestamps = []
-    for word_info in words:
-        word = word_info['word'].lower()
-        if verbose:
-            print(f"Checking word: {word}")  # Debug
-        if word in bad_words:
-            if verbose:
-                print(f"Found bad word: {word}")  # Debug
-            start_time = word_info['start'] * 1000  # Convert to milliseconds
-            end_time = word_info['end'] * 1000  # Convert to milliseconds
-            bad_word_timestamps.append((start_time, end_time))
-    return bad_word_timestamps
-
-# Function to censor bad words in the transcript
-def censor_transcript(transcript, bad_words):
-    words = transcript.split()
-    for i, word in enumerate(words):
-        if word.lower() in bad_words:
-            words[i] = "\033[7m[redacted]\033[m"
-    return ' '.join(words)
-
-# Function to replace bad words with beeps
-def beep_out_bad_words(audio_segment, bad_word_timestamps, beep_volume_reduction, verbose=False):
-    for start_time, end_time in bad_word_timestamps:
-        start_ms = int(start_time)
-        end_ms = int(end_time)
-        duration_ms = end_ms - start_ms
-        beep = Sine(1000).to_audio_segment(duration=duration_ms).apply_gain(-beep_volume_reduction)
-        if verbose:
-            print(f"Beeping from {start_ms} to {end_ms}")  # Debug
-        audio_segment = audio_segment[:start_ms] + beep + audio_segment[end_ms:]
-    return audio_segment
-
-# Function to load bad words from CSV file
-def load_bad_words(bad_words_file):
-    bad_words = []
-    with open(bad_words_file, newline='') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            for word in row:
-                bad_words.append(word.strip().lower())
-    return bad_words
-
-# Function to load new transcript from text file
-def load_new_transcript(transcript_file):
-    with open(transcript_file, 'r') as file:
-        new_transcript = file.read().strip().split()
-    return new_transcript
-
-# Function to rearrange audio segments based on new transcript
-def rearrange_audio_segments(audio_segment, words, new_transcript, verbose):
-    segments = []
-    word_dict = {word_info['word']: word_info for word_info in words}
-
+# =====================
+# Functions
+# =====================
+def transcribe_with_whisper(audio_file: str, verbose: bool = False) -> str:
+    """Transcribe audio using Whisper."""
     if verbose:
-        print("Original words with timestamps:")
-        for word_info in words:
-            print(f"{word_info['word']}: start={word_info['start']}, end={word_info['end']}")
-
-    for word in new_transcript:
-        lower_word = word.lower()  # Ensure comparison is case-insensitive
-        if lower_word in word_dict:
-            word_info = word_dict[lower_word]
-            start_time = word_info['start'] * 1000  # Convert to milliseconds
-            end_time = word_info['end'] * 1000  # Convert to milliseconds
-            segment = audio_segment[start_time:end_time]
-            segments.append(segment)
-            if verbose:
-                print(f"Added segment for word '{word}': start_time={start_time}, end_time={end_time}")
-        else:
-            print(f"Word '{word}' not found in the original transcript.")
-
-    if not segments:
-        print("No segments found. Generating silent audio segment.")
-        return AudioSegment.silent(duration=len(audio_segment))
-
-    return sum(segments)
-
-# Main function to handle command line arguments and processing
-def main(**kwargs):
-    # Reduce Vosk logging verbosity by default
-    SetLogLevel(-1)
-
-    audio_file = kwargs.get('audio_file')
-    bad_words_file = kwargs.get('bad_words_file')
-    output_format = kwargs.get('output_format')
-    nocensor = kwargs.get('nocensor', False)
-    new_transcript = kwargs.get('new_transcript', False)
-    transcribe_only = kwargs.get('transcribe_only')
-    model_path = kwargs.get('model_path')
-    transcript_json_path = kwargs.get('transcript_json_path')
-    verbose = kwargs.get('verbose')
-
-    if verbose:
-        SetLogLevel(0)
-
-    print(f"Audio file: {audio_file}")
-    print(f"Model path: {model_path}")
-
-    # Determine the output format
-    input_format = os.path.splitext(audio_file)[1][1:]
-    output_format = output_format if output_format else input_format
-
-    # Load the input audio file with pydub
+        print("Loading Whisper model for transcription...")
     try:
-        audio_segment = AudioSegment.from_file(audio_file)
-        print(f"Loaded audio file {audio_file}, duration: {len(audio_segment)} ms, frame_count={audio_segment.frame_count()}")  # Debug
+        model = whisper.load_model("base")
+        result = model.transcribe(audio_file)
+        transcript = result.get("text", "").strip()
+        if not transcript and verbose:
+            print("Warning: No transcription produced by Whisper.")
+        if verbose:
+            print(f"Whisper Transcript: {transcript}")
+        return transcript
     except Exception as e:
-        print(f"Error loading audio file {audio_file}: {e}")
-        return
+        print(f"Error in Whisper transcription: {e}")
+        return ""
 
-    if len(audio_segment) == 0:
-        print("Error: Loaded audio segment is empty.")
-        return
+def detect_pii_with_llm(transcript: str, verbose: bool = False) -> List[str]:
+    """Detect PII in the transcript using an LLM, returning only PII values."""
+    if not transcript:
+        print("No transcript provided for PII detection.")
+        return []
 
-    if transcribe_only:
-        transcript, words = transcribe_audio_with_timestamps(audio_segment, model_path, verbose)
-        print("Transcript:")
-        print(transcript)
+    prompt = f"""
+    Analyze the transcript below and detect Personal Identifiable Information (PII).
+    Return results ONLY in the following JSON format:
+    {{
+        "pii_list": ["VALUE1", "VALUE2", ...]
+    }}
+
+    Transcript:
+    ---
+    {transcript}
+    ---
+    """
+    try:
+        raw_response = chatlocal(prompt, transcript)
+        if verbose:
+            print(f"Raw LLM Response:\n{raw_response}")
+
+        json_match = re.search(r"\{.*\}", raw_response, re.DOTALL)
+        if not json_match:
+            print("No valid JSON found in LLM response.")
+            return []
+
+        response_json = json.loads(json_match.group(0))
+        pii_list = response_json.get("pii_list", [])
+        if not isinstance(pii_list, list) or not all(isinstance(v, str) for v in pii_list):
+            print("Invalid PII list format in LLM response.")
+            return []
+
+        if verbose:
+            print(f"Detected PII Values: {pii_list}")
+        return pii_list
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"Error parsing LLM response: {e}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error in PII detection: {e}")
+        return []
+
+def write_pii_to_csv(detected_pii: List[str], output_file: str = "detected_pii.csv", verbose: bool = False):
+    """Write detected PII values to a CSV file."""
+    if not detected_pii:
+        print("No PII to write to CSV.")
         return
 
     try:
-        if transcript_json_path:
-            jsonfile = open(transcript_json_path)
-            words = json.load(jsonfile)
-            jsonfile.close()
-            # words = json.loads(manual_words_json)
-            transcript = ' '.join(word["word"] for word in words)
-        else:
-            transcript, words = transcribe_audio_with_timestamps(audio_segment, model_path, verbose)
-        print("Raw transcript:")
-        print(transcript)
+        with open(output_file, mode="w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["value"])  # Simplified header
+            for pii_value in detected_pii:
+                writer.writerow([pii_value])
         if verbose:
-            print("Words with timestamps:", words)  # Debug
+            print(f"PII values written to CSV file: {output_file}")
     except Exception as e:
-        print(f"Error during transcription: {e}")
-        return
+        print(f"Error writing PII to CSV: {e}")
 
-    if not bad_words_file and not ( transcribe_only or nocensor):
-        print("Error: --bad_words_file is required unless --transcribe_only or nocensor are set.")
-        return
+def transcribe_audio_with_timestamps(audio_file: str, model_path: str, verbose: bool = False) -> Tuple[str, List[dict]]:
+    """Transcribe audio with Vosk and get word-level timestamps."""
+    if verbose:
+        print(f"Transcribing audio with Vosk: {audio_file} using model: {model_path}")
+    try:
+        model = Model(model_path)
+        recognizer = KaldiRecognizer(model, 16000)
+        recognizer.SetWords(True)
 
-    if bad_words_file:
-        try:
-            bad_words = load_bad_words(bad_words_file)
-            print(f"Loaded bad words: {bad_words}")  # Debug
-        except Exception as e:
-            print(f"Error loading bad words from file {bad_words_file}: {e}")
-            return
-    else:
-        bad_words = []
+        wf = open(audio_file, "rb")
+        if len(wf.read(44)) != 44:  # Check WAV header
+            print("Invalid WAV file header.")
+            return "", []
+        wf.seek(44)  # Reset to after header
 
-    if new_transcript:
-        try:
-            new_transcript = load_new_transcript(new_transcript)
-            print(f"Loaded new transcript: {new_transcript}")  # Debug
-            audio_segment = rearrange_audio_segments(audio_segment, words, new_transcript, verbose)
-            # Retranscribe the rearranged audio to get new timestamps
-            transcript, words = transcribe_audio_with_timestamps(audio_segment, model_path, verbose=False)
-            if not transcript_json_path:
-                print("New Transcript:", transcript)  # Debug
+        all_words = []
+        while True:
+            data = wf.read(4000)
+            if len(data) == 0:
+                break
+            if recognizer.AcceptWaveform(data):
+                result = json.loads(recognizer.Result())
+                if "result" in result:
+                    all_words.extend(result["result"])
+
+        final_result = json.loads(recognizer.FinalResult())
+        if "result" in final_result:
+            all_words.extend(final_result["result"])
+
+        transcript = " ".join(word["word"] for word in all_words if "word" in word)
+        if verbose:
+            print(f"Vosk Transcript: {transcript[:100]}... ({len(all_words)} words)")
+        return transcript, all_words
+    except Exception as e:
+        print(f"Error in Vosk transcription: {e}")
+        return "", []
+
+def find_pii_timestamps(vosk_words: List[dict], pii_terms: List[str], verbose: bool = False) -> List[Tuple[int, int]]:
+    """Find timestamps for PII terms in Vosk transcription."""
+    if not vosk_words or not pii_terms:
+        return []
+
+    timestamps = []
+    normalized_pii = set()
+    for term in pii_terms:
+        normalized_pii.update(re.findall(r"\b\w+\b", term.lower()))
+
+    if verbose:
+        print(f"Normalized PII terms for matching: {normalized_pii}")
+
+    for word_info in vosk_words:
+        if "word" not in word_info or "start" not in word_info or "end" not in word_info:
+            continue
+        word = word_info["word"].lower()
+        if word in normalized_pii:
+            start_ms = int(word_info["start"] * 1000)
+            end_ms = int(word_info["end"] * 1000)
+            timestamps.append((start_ms, end_ms))
             if verbose:
-                print("New Words with timestamps:", words)  # Debug
-        except Exception as e:
-            print(f"Error rearranging audio: {e}")
-            return
+                print(f"Matched '{word}' at {start_ms}-{end_ms}ms")
 
-    if nocensor:
-        if not transcript_json_path:
-            print("Transcript Without Censoring:")
-            print(transcript)
-        # Generate output file name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        input_file_name, _ = os.path.splitext(os.path.basename(audio_file))
-        output_file = f"{input_file_name}_rearranged_{timestamp}.{output_format}"
-        # Save the rearranged audio file
-        try:
-            audio_segment.export(output_file, format=output_format)
-            print(f"Saved rearranged audio to {output_file}")  # Debug
-        except Exception as e:
-            print(f"Error saving rearranged audio to {output_file}: {e}")
+    if timestamps and verbose:
+        print(f"Found {len(timestamps)} PII timestamps")
+    return timestamps
+
+def beep_pii_segments(audio: AudioSegment, pii_timestamps: List[Tuple[int, int]], verbose: bool = False) -> AudioSegment:
+    """Replace PII segments with beep tones."""
+    if not pii_timestamps:
+        if verbose:
+            print("No PII timestamps to mask.")
+        return audio
+
+    censored_audio = audio
+    for start, end in sorted(pii_timestamps, reverse=True):  # Reverse to avoid overlap issues
+        if end <= start or start < 0 or end > len(audio):
+            if verbose:
+                print(f"Invalid timestamp range: {start}-{end}ms")
+            continue
+        duration = end - start
+        beep = Sine(1000).to_audio_segment(duration=duration).apply_gain(-10)
+        censored_audio = censored_audio[:start] + beep + censored_audio[end:]
+        if verbose:
+            print(f"Masked audio from {start}ms to {end}ms")
+    return censored_audio
+
+# =====================
+# Main Workflow
+# =====================
+def main(audio_file: str, model_path: str, auto_detect: bool, verbose: bool):
+    """Detect PII, write to CSV, and mask audio with beeps."""
+    SetLogLevel(-1)  # Reduce Vosk logging
+
+    # Validate input audio file
+    if not os.path.exists(audio_file):
+        print(f"Audio file not found: {audio_file}")
         return
 
-    if bad_words:
-        try:
-            bad_word_timestamps = find_bad_word_timestamps(words, bad_words, verbose)
+    # Step 1: Transcribe with Whisper for PII detection
+    transcript = transcribe_with_whisper(audio_file, verbose)
+    if not transcript:
+        print("Transcription failed. Cannot proceed with PII detection.")
+        return
+
+    # Step 2: Detect PII and write to CSV
+    detected_pii = []
+    if auto_detect:
+        detected_pii = detect_pii_with_llm(transcript, verbose)
+    if not detected_pii:
+        print("No PII detected. Exiting.")
+        return
+
+    csv_file = "detected_pii.csv"
+    write_pii_to_csv(detected_pii, csv_file, verbose)
+
+    # Step 3: Load audio and prepare for Vosk
+    try:
+        audio = AudioSegment.from_file(audio_file)
+        if audio.frame_rate != 16000 or audio.channels != 1 or audio.sample_width != 2:
+            audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+            temp_wav = "temp_vosk_input.wav"
+            audio.export(temp_wav, format="wav")
+            vosk_audio_file = temp_wav
             if verbose:
-                print(f"Bad word timestamps: {bad_word_timestamps}")  # Debug
-        except Exception as e:
-            print(f"Error finding bad words: {e}")
-            return
+                print(f"Converted audio to {temp_wav} for Vosk compatibility")
+        else:
+            vosk_audio_file = audio_file
+    except Exception as e:
+        print(f"Error preparing audio for Vosk: {e}")
+        return
 
-        # Replace bad words with beeps in the audio
-        try:
-            cleaned_audio = beep_out_bad_words(audio_segment, bad_word_timestamps, 10, verbose)
-        except Exception as e:
-            print(f"Error beeping out bad words: {e}")
-            return
+    # Step 4: Transcribe with Vosk for timestamps
+    _, vosk_words = transcribe_audio_with_timestamps(vosk_audio_file, model_path, verbose)
+    if not vosk_words:
+        print("Vosk transcription failed. Cannot proceed with masking.")
+        if vosk_audio_file != audio_file and os.path.exists(vosk_audio_file):
+            os.remove(vosk_audio_file)
+        return
 
-        # Output the censored transcript
-        censored_transcript = censor_transcript(transcript, bad_words)
-        print("Censored Transcript:")
-        print(censored_transcript)
+    # Step 5: Find PII timestamps
+    pii_timestamps = find_pii_timestamps(vosk_words, detected_pii, verbose)
 
-        # Generate output file name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        input_file_name, _ = os.path.splitext(os.path.basename(audio_file))
-        output_file = f"{input_file_name}_cleaned_{timestamp}.{output_format}"
+    # Clean up temporary file
+    if vosk_audio_file != audio_file and os.path.exists(vosk_audio_file):
+        os.remove(vosk_audio_file)
+        if verbose:
+            print(f"Removed temporary file: {vosk_audio_file}")
 
-        # Save the cleaned audio file
-        try:
-            cleaned_audio.export(output_file, format=output_format)
-            print(f"Saved cleaned audio to {output_file}")
-        except Exception as e:
-            print(f"Error saving cleaned audio to {output_file}: {e}")
+    # Step 6: Mask audio with beeps
+    if pii_timestamps:
+        censored_audio = beep_pii_segments(audio, pii_timestamps, verbose)
+        output_file = f"{os.path.splitext(audio_file)[0]}_censored.wav"
+        censored_audio.export(output_file, format="wav")
+        print(f"Masked audio saved to: {output_file}")
     else:
-        print("No bad words provided for censoring.")
+        print("No PII timestamps found. Audio unchanged.")
 
+# =====================
+# Command-line Interface
+# =====================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Audio Censoring Script")
-    parser.add_argument('--audio_file', type=str, required=True, help='Path to the input audio file')
-    parser.add_argument('--bad_words_file', type=str, help='Path to the bad words CSV file')
-    parser.add_argument('--output_format', type=str, default='mp3', help='Desired output format of the audio file')
-    parser.add_argument('--nocensor', action='store_true', help='Flag to output transcript without censoring')
-    parser.add_argument('--model_path', type=str, required=True, help='Path to the Vosk model')
-    parser.add_argument('--transcript_json_path', type=str, help='Path to JSON transcript data')
-    parser.add_argument('--verbose', action='store_true', help='Increase output verbosity')
-    parser.add_argument('--transcribe_only', action='store_true', help='Transcribe without generating new audio')
-    parser.add_argument('--new_transcript', type=str, help='Path to .txt file with desired output words')
-
+    parser = argparse.ArgumentParser(description="Audio PII Censoring Tool: Detect PII and Beep")
+    parser.add_argument("--audio_file", required=True, help="Path to the input audio file")
+    parser.add_argument("--model_path", required=True, help="Path to the Vosk model directory")
+    parser.add_argument("--auto_detect", action="store_true", help="Enable automated PII detection using LLM")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
-    kwargs = vars(args)
 
-    main(**kwargs)
+    main(args.audio_file, args.model_path, args.auto_detect, args.verbose)
