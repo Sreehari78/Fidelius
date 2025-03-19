@@ -21,7 +21,7 @@ def maskobfcsv(json_data):
         input_path = os.path.join('..', 'data', filename)  # Fallback to default
     else:
         input_path = os.path.join(input_path, filename)  # Use provided inputPath
-    
+    print(f"Input file path: {input_path}")
     # Validate input file exists
     if not os.path.exists(input_path):
         raise Exception(f"Input file not found: {input_path}")
@@ -55,9 +55,10 @@ def maskobfcsv(json_data):
                 print(f"Obfuscating the data in column {column_name}")
                 csvCol = df[column_name]
                 data_string = ','.join(csvCol.astype(str))
+                print("Data String: ", data_string)
                 modified_data_string = chatlocal(instruction, data_string)
                 modified_chunk = modified_data_string.split(',')
-
+                print("Modified Chunk: ", modified_chunk)
                 for x in range(min(len(csvCol), len(modified_chunk))):
                     updated_df.loc[x, column_name] = modified_chunk[x]
     
