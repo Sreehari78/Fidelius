@@ -68,13 +68,27 @@ def maskpdf():
 def get_image_entities():
     data = request.get_json()
     file_path = data.get('filePath')
+    output_path = data.get('outputPath', os.path.dirname(file_path) if file_path else None)
     
     if not file_path:
         return jsonify({"error": "No file path provided"}), 400
     
+    if not output_path:
+        return jsonify({"error": "No output path provided"}), 400
+    
     try:
+        # Get entities and create redacted image
         entities = predict_image_entities(file_path)
-        return jsonify({"entities": entities})
+        redacted_path = redact_image(
+            file_path=file_path,
+            fill_color=(255, 192, 203)  # Default pink color
+        )
+        
+        return jsonify({
+            "entities": entities,
+            "output": redacted_path,
+            "filename": os.path.basename(redacted_path)
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
