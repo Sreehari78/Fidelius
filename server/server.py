@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import os
+from imagehandler import predict_image_entities, redact_image
 from csvhandler import predictheaders, maskobfcsv
 from pdfhandler import predictpdfheaders, maskobfpdf
 import subprocess  # For running external Python scripts
@@ -64,6 +65,60 @@ def maskpdf():
         return jsonify({"output": output})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/getimageentities", methods=['POST'])
+def get_image_entities():
+    data = request.get_json()
+    file_path = data.get('filePath')
+    output_path = data.get('outputPath', os.path.dirname(file_path) if file_path else None)
+    
+    if not file_path:
+        return jsonify({"error": "No file path provided"}), 400
+    
+    if not output_path:
+        return jsonify({"error": "No output path provided"}), 400
+    
+    try:
+        # Get entities and create redacted image
+        entities = predict_image_entities(file_path)
+        redacted_path = redact_image(
+            file_path=file_path,
+            fill_color=(255, 192, 203)  # Default pink color
+        )
+        
+        return jsonify({
+            "entities": entities,
+            "output": redacted_path,
+            "filename": os.path.basename(redacted_path)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/redactimage", methods=['POST'])
+def redact_image_endpoint():
+    json_data = request.get_json()
+    
+    if not json_data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    file_path = json_data.get('filePath')
+    entities = json_data.get('entities', None)  # Optional list of entities to redact
+    fill_color = json_data.get('fillColor', (255, 192, 203))  # Default to pink from example
+    
+    if not file_path:
+        return jsonify({'error': 'No file path provided'}), 400
+    
+    try:
+        output_path = redact_image(file_path, entities_to_redact=entities, fill_color=tuple(fill_color))
+        return jsonify({
+            'output': output_path,
+            'filename': os.path.basename(output_path)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/getfolderfiles', methods=['POST'])
@@ -79,7 +134,7 @@ def get_folder_files():
         for root, _, filenames in os.walk(folder_path):
             for filename in filenames:
                 full_path = os.path.join(root, filename)
-                if filename.lower().endswith(('.csv', '.pdf')):
+                if filename.lower().endswith(('.csv', '.pdf', '.png', '.jpg', '.jpeg')):
                     files.append(full_path)
         
         if not files:

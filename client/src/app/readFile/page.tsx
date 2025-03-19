@@ -161,7 +161,7 @@ export default function HeaderControl() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folderPath }),
       });
-
+      console.log(response);
       if (!response.ok) {
         throw new Error("Failed to fetch files from folder");
       }
@@ -305,9 +305,9 @@ export default function HeaderControl() {
           // Handle PDF if needed
           continue;
         }
-
+        console.log(response);
         if (!response.ok) {
-          throw new Error(`Network response was not ok for file ${file.name}`);
+          throw Error(`Network response was not ok for file ${file.name}`);
         }
 
         const result = await response.json();
@@ -360,12 +360,12 @@ export default function HeaderControl() {
         <p className='text-gray-600'></p>
       </header>
 
-      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
-        <h2 className='text-xl font-semibold mb-4'>
+      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+        <h2 className="text-xl font-semibold mb-4 text-black">
           Process Files from Folder
         </h2>
-        <div className='flex items-center gap-2'>
-          <div className='flex-1'>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 text-black">
             <input
               type='text'
               value={folderPath}
@@ -397,10 +397,12 @@ export default function HeaderControl() {
         )}
       </div>
 
-      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
-        <h2 className='text-xl font-semibold mb-4'>Specify Output Folder</h2>
-        <div className='flex items-center gap-2'>
-          <div className='flex-1'>
+      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+        <h2 className="text-xl font-semibold mb-4 text-black">
+          Specify Output Folder
+        </h2>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 text-black">
             <input
               type='text'
               value={outputPath}

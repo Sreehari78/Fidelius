@@ -12,3 +12,5 @@ pandas
 pydub 
 vosk 
 argparse
+presidio-image-redactor
+pillow
