@@ -361,11 +361,11 @@ export default function HeaderControl() {
       </header>
 
       <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4">
+        <h2 className="text-xl font-semibold mb-4 text-black">
           Process Files from Folder
         </h2>
         <div className="flex items-center gap-2">
-          <div className="flex-1">
+          <div className="flex-1 text-black">
             <input
               type="text"
               value={folderPath}
@@ -399,9 +399,11 @@ export default function HeaderControl() {
       </div>
 
       <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4">Specify Output Folder</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black">
+          Specify Output Folder
+        </h2>
         <div className="flex items-center gap-2">
-          <div className="flex-1">
+          <div className="flex-1 text-black">
             <input
               type="text"
               value={outputPath}
