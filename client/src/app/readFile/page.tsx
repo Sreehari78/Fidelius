@@ -365,7 +365,7 @@ export default function HeaderControl() {
           Process Files from Folder
         </h2>
         <div className="flex items-center gap-2">
-          <div className="flex-1">
+          <div className="flex-1 text-black">
             <input
               type="text"
               value={folderPath}
@@ -403,7 +403,7 @@ export default function HeaderControl() {
           Specify Output Folder
         </h2>
         <div className="flex items-center gap-2">
-          <div className="flex-1">
+          <div className="flex-1 text-black">
             <input
               type="text"
               value={outputPath}
