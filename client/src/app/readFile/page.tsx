@@ -161,7 +161,7 @@ export default function HeaderControl() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folderPath }),
       });
-
+      console.log(response);
       if (!response.ok) {
         throw new Error("Failed to fetch files from folder");
       }
@@ -305,9 +305,9 @@ export default function HeaderControl() {
           // Handle PDF if needed
           continue;
         }
-
+        console.log(response);
         if (!response.ok) {
-          throw new Error(`Network response was not ok for file ${file.name}`);
+          throw Error(`Network response was not ok for file ${file.name}`);
         }
 
         const result = await response.json();

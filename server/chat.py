@@ -16,6 +16,15 @@
 #     print(completion.choices[0].message)
 #     return completion.choices[0].message
 
+from pydantic import BaseModel
+
+class PIIValue(BaseModel):
+    field: str
+    values: list[str]
+
+class ResponeFormat(BaseModel):
+    fields: list[PIIValue]
+
 
 import requests
 import json
@@ -25,7 +34,7 @@ def chatlocal(system,content):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "llama-3.2-1b-instruct",
+        "model": "hermes-3-llama-3.2-3b",
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": content}
