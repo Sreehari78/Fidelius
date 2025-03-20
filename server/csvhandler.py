@@ -55,16 +55,19 @@ def maskobfcsv(json_data):
                 print(f"Obfuscating the data in column {column_name}")
                 csvCol = df[column_name]
                 data_string = ','.join(csvCol.astype(str))
-                print("Data String: ", data_string)
                 modified_data_string = chatlocal(instruction, data_string)
                 modified_chunk = modified_data_string.split(',')
                 print("Modified Chunk: ", modified_chunk)
                 for x in range(min(len(csvCol), len(modified_chunk))):
                     updated_df.loc[x, column_name] = modified_chunk[x]
+                print
     
+    print(updated_df["Address"])
     updated_df = updated_df.iloc[1:]
     os.makedirs(os.path.dirname(csv_output_file), exist_ok=True)
+    print(f"csv_output_file is {csv_output_file}")
     updated_df.to_csv(csv_output_file, index=False)
-    
+    updated_df.to_csv("D:\Softwares\Codes\Fidelius\client\public\Ecommerce-Customers-2-output.csv",index=False)
+    updated_df.to_csv("D:\Softwares\Codes\Fidelius\client\public\Ecommerce-Customers-output.csv",index=False)
     print(f"Output saved to: {csv_output_file}")
     return csv_output_file

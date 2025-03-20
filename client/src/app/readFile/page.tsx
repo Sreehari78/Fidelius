@@ -11,7 +11,7 @@ import {
   FolderOpen,
   Download,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface HeaderControl {
   visible: boolean;
@@ -29,6 +29,33 @@ interface SubmitData {
   outputPath: string;
   inputPath: string; // Added inputPath to SubmitData
 }
+
+const API_BASE_URL = "http://localhost:5000";
+
+const callApi = async (endpoint: string, data: any) => {
+  try {
+    console.log(`Calling ${endpoint} with data:`, data); // Debug log
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`Response from ${endpoint}:`, result); // Debug log
+    return result;
+  } catch (error) {
+    console.error(`API call failed to ${endpoint}:`, error);
+    throw error;
+  }
+};
 
 export default function HeaderControl() {
   const [files, setFiles] = useState<
@@ -52,6 +79,7 @@ export default function HeaderControl() {
   const [processingQueue, setProcessingQueue] = useState<number[]>([]);
   const [outputFiles, setOutputFiles] = useState<string[]>([]);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const processNextFileInQueue = async () => {
@@ -104,41 +132,61 @@ export default function HeaderControl() {
 
     const fileType = file.name.split(".").pop()?.toLowerCase();
     try {
-      let response: Response | null = null;
+      let result;
+
       if (fileType === "csv") {
-        response = await fetch("http://localhost:5000/getcsvheader", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filePath: file.path }),
-        });
+        result = await callApi("/getcsvheader", { filePath: file.path });
       } else if (fileType === "pdf") {
-        response = await fetch("http://localhost:5000/getpdfheader", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filePath: file.path }),
+        result = await callApi("/getpdfheader", { filePath: file.path });
+      } else if (
+        ["jpg", "jpeg", "png", "gif", "webp"].includes(fileType || "")
+      ) {
+        result = await callApi("/getimageentities", {
+          filePath: file.path,
+          outputPath,
         });
+      } else if (["mp3", "wav"].includes(fileType || "")) {
+        result = await callApi("/getaudio", { filePath: file.path });
       } else {
         throw new Error("Unsupported file type");
       }
 
-      if (response && !response.ok) {
-        throw new Error("Network response was not ok");
-      }
+      // Process the result based on file type
+      if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileType || "")) {
+        setBackendColumns((prev) => ({
+          ...prev,
+          [fileIndex]: result.entities || [],
+        }));
 
-      const result = await response.json();
-      const headers: string[] = result.headers.slice(1);
-
-      setBackendColumns((prev) => ({ ...prev, [fileIndex]: headers }));
-
-      const initialControls: Record<string, HeaderControl> = headers.reduce(
-        (acc, col) => {
-          acc[col] = { visible: true, mode: null, prompt: "" };
+        const initialControls: Record<string, HeaderControl> = (
+          result.entities || []
+        ).reduce((acc, entity) => {
+          acc[entity] = { visible: true, mode: "mask", prompt: "" };
           return acc;
-        },
-        {} as Record<string, HeaderControl>
-      );
+        }, {} as Record<string, HeaderControl>);
 
-      setHeaderControls((prev) => ({ ...prev, [fileIndex]: initialControls }));
+        setHeaderControls((prev) => ({
+          ...prev,
+          [fileIndex]: initialControls,
+        }));
+      } else {
+        // Handle CSV and PDF as before
+        const headers: string[] = result.headers.slice(1);
+        setBackendColumns((prev) => ({ ...prev, [fileIndex]: headers }));
+
+        const initialControls: Record<string, HeaderControl> = headers.reduce(
+          (acc, col) => {
+            acc[col] = { visible: true, mode: null, prompt: "" };
+            return acc;
+          },
+          {} as Record<string, HeaderControl>
+        );
+
+        setHeaderControls((prev) => ({
+          ...prev,
+          [fileIndex]: initialControls,
+        }));
+      }
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error);
     } finally {
@@ -156,42 +204,34 @@ export default function HeaderControl() {
     setFolderError(null);
 
     try {
-      const response = await fetch("http://localhost:5000/getfolderfiles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderPath }),
-      });
-      console.log(response);
-      if (!response.ok) {
-        throw new Error("Failed to fetch files from folder");
-      }
+      const result = await callApi("/getfolderfiles", { folderPath });
+      console.log("Folder files result:", result); // Debug log
 
-      const result = await response.json();
-      const folderFiles = result.files;
-
-      if (!folderFiles || folderFiles.length === 0) {
+      if (!result.files || result.files.length === 0) {
         setFolderError("No supported files found in the folder");
-        setIsFolderProcessing(false);
-        return;
-      }
-
-      const supportedFiles = folderFiles.filter(
-        (file: string) => file.endsWith(".csv") || file.endsWith(".pdf")
-      );
-
-      if (supportedFiles.length === 0) {
-        setFolderError("No supported files found in the folder");
-        setIsFolderProcessing(false);
         return;
       }
 
       const startIdx = files.length;
-      const newFiles = supportedFiles.map((filePath: string) => {
+      const newFiles = result.files.map((filePath: string) => {
         const name = filePath.split(/[/\\]/).pop() || "";
+        const ext = name.toLowerCase().split(".").pop();
+        let type = "application/octet-stream";
+
+        // Set correct MIME type
+        if (ext === "csv") type = "text/csv";
+        else if (ext === "pdf") type = "application/pdf";
+        else if (["jpg", "jpeg"].includes(ext || "")) type = "image/jpeg";
+        else if (ext === "png") type = "image/png";
+        else if (ext === "gif") type = "image/gif";
+        else if (ext === "webp") type = "image/webp";
+        else if (ext === "mp3") type = "audio/mp3";
+        else if (ext === "wav") type = "audio/wav";
+
         return {
           name,
           path: filePath,
-          type: name.endsWith(".csv") ? "text/csv" : "application/pdf",
+          type,
           size: 0,
         };
       });
@@ -210,7 +250,9 @@ export default function HeaderControl() {
     } catch (error) {
       console.error("Error processing folder:", error);
       setFolderError(
-        error instanceof Error ? error.message : "Unknown error occurred"
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred while processing the folder"
       );
     } finally {
       setIsFolderProcessing(false);
@@ -278,6 +320,7 @@ export default function HeaderControl() {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        const fileType = file.name.split(".").pop()?.toLowerCase();
         const fileControls = headerControls[i] || {};
         const selectedHeaders = Object.entries(fileControls)
           .filter(([_, control]) => control.visible)
@@ -286,32 +329,40 @@ export default function HeaderControl() {
             mode: control.mode,
             prompt: control.prompt,
           }));
+
         const output: SubmitData = {
           fileName: file.name,
           headers: selectedHeaders,
           outputPath: outputPath,
-          inputPath: folderPath, // Added inputPath from folderPath
+          inputPath: folderPath,
         };
-        console.log(`Output for ${file.name}:`, output);
 
         let response;
-        if (file.name.split(".").pop() === "csv") {
-          response = await fetch("http://localhost:5000/maskobfcsv", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(output),
+        if (fileType === "csv") {
+          response = await callApi("/maskobfcsv", output);
+          if (response.filename) {
+            outputFilesList.push(response.filename);
+          }
+        } else if (
+          ["jpg", "jpeg", "png", "gif", "webp"].includes(fileType || "")
+        ) {
+          // Handle image files
+          response = await callApi("/redactimage", {
+            filePath: file.path,
+            entities: selectedHeaders.map((h) => h.name),
+            fillColor: [255, 192, 203], // Default pink color
           });
-        } else {
-          // Handle PDF if needed
-          continue;
-        }
-        console.log(response);
-        if (!response.ok) {
-          throw Error(`Network response was not ok for file ${file.name}`);
+        } else if (["mp3", "wav"].includes(fileType || "")) {
+          // Handle audio files
+          response = await callApi("/getaudio", {
+            filePath: file.path,
+            outputPath: outputPath,
+          });
         }
 
-        const result = await response.json();
-        outputFilesList.push(result.filename);
+        if (response?.filename) {
+          outputFilesList.push(response.filename);
+        }
       }
 
       setOutputFiles(outputFilesList);
@@ -328,18 +379,26 @@ export default function HeaderControl() {
                 prompt: control.prompt,
               })),
             outputPath: outputPath,
-            inputPath: folderPath, // Included in JSON output for reference
+            inputPath: folderPath,
           })),
           null,
           2
         )
       );
 
-      router.push(
-        `/outputCsv?files=${encodeURIComponent(
-          JSON.stringify(outputFilesList)
-        )}`
-      );
+      // Only redirect to outputCsv if there are CSV files
+      if (outputFilesList.length > 0) {
+        router.push(
+          `/outputCsv?files=${encodeURIComponent(
+            JSON.stringify(outputFilesList)
+          )}`
+        );
+      } else {
+        // Show a success message for non-CSV files
+        setSubmitResponse(
+          "Files processed successfully. Check the output folder."
+        );
+      }
     } catch (error) {
       console.error("Error:", error);
       setSubmitResponse("Error submitting data to server");
@@ -360,12 +419,12 @@ export default function HeaderControl() {
         <p className='text-gray-600'></p>
       </header>
 
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4 text-black">
+      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
+        <h2 className='text-xl font-semibold mb-4 text-black'>
           Process Files from Folder
         </h2>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 text-black">
+        <div className='flex items-center gap-2'>
+          <div className='flex-1 text-black'>
             <input
               type='text'
               value={folderPath}
@@ -397,12 +456,12 @@ export default function HeaderControl() {
         )}
       </div>
 
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4 text-black">
+      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
+        <h2 className='text-xl font-semibold mb-4 text-black'>
           Specify Output Folder
         </h2>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 text-black">
+        <div className='flex items-center gap-2'>
+          <div className='flex-1 text-black'>
             <input
               type='text'
               value={outputPath}
@@ -497,10 +556,15 @@ export default function HeaderControl() {
           ) : (
             <>
               <p className='text-lg font-medium text-gray-500'>
-                Drag 'n' drop CSV or PDF files here, or click to select files
+                Drag 'n' drop files here, or click to select files
               </p>
               <p className='text-sm text-gray-500'>
-                Supported file types: CSV, PDF
+                Supported files:
+                <br />
+                • Documents: CSV, PDF
+                <br />
+                • Images: JPG, JPEG, PNG, GIF, WEBP
+                <br />• Audio: MP3, WAV
               </p>
             </>
           )}

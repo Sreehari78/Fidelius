@@ -144,7 +144,7 @@ export default function MultiFileCsvViewer() {
                 );
                 setColumnVisibility(newVisibility);
               }}
-              className='border p-2 rounded'>
+              className='border p-2 rounded text-black'>
               {csvDatasets.map((dataset, index) => (
                 <option key={index} value={index}>
                   {dataset.filename}
@@ -161,7 +161,7 @@ export default function MultiFileCsvViewer() {
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className='px-4 py-2 text-left text-sm font-medium text-gray-700 border'>
+                        className='px-4 py-2 text-left text-sm font-medium text-gray-50 border'>
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
@@ -177,7 +177,7 @@ export default function MultiFileCsvViewer() {
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className='px-4 py-2 text-sm text-gray-700 border'>
+                        className='px-4 py-2 text-sm text-gray-50 border'>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

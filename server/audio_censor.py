@@ -35,40 +35,58 @@ def detect_pii_with_llm(transcript: str, verbose: bool = False) -> List[str]:
     if not transcript:
         print("No transcript provided for PII detection.")
         return []
-
+    
+    # Define the prompt strictly instructing the LLM to return JSON
     prompt = f"""
     Analyze the transcript below and detect Personal Identifiable Information (PII).
     Return results ONLY in the following JSON format:
     {{
         "pii_list": ["VALUE1", "VALUE2", ...]
     }}
-
     Transcript:
     ---
     {transcript}
     ---
     """
+    
     try:
+        # Call the `chatlocal` LLM API
         raw_response = chatlocal(prompt, transcript)
+        
         if verbose:
             print(f"Raw LLM Response:\n{raw_response}")
-
-        json_match = re.search(r"\{.*\}", raw_response, re.DOTALL)
+        
+        # Check if response contains valid JSON
+        json_match = re.search(r"\{.*?\}", raw_response, re.DOTALL)
         if not json_match:
-            print("No valid JSON found in LLM response.")
-            return []
-
+            print("No valid JSON structure found in LLM response. Attempting fallback parsing.")
+            
+            # Fallback logic: If JSON is missing, extract potential PII by heuristics
+            extracted_pii = []
+            pii_pattern = r"[A-Z][a-z]+(?: [A-Z][a-z]+)*|[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z]+|\d+"  # Heuristic pattern
+            for match in re.findall(pii_pattern, raw_response):
+                extracted_pii.append(match.strip())
+            
+            if verbose:
+                print(f"Fallback extracted PII values: {extracted_pii}")
+            
+            return extracted_pii
+        
+        # Parse the matched JSON object
         response_json = json.loads(json_match.group(0))
         pii_list = response_json.get("pii_list", [])
+        
+        # Validate list of PII
         if not isinstance(pii_list, list) or not all(isinstance(v, str) for v in pii_list):
-            print("Invalid PII list format in LLM response.")
+            print("Invalid PII list format in extracted JSON. Returning fallback empty list.")
             return []
-
+        
         if verbose:
             print(f"Detected PII Values: {pii_list}")
+        
         return pii_list
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"Error parsing LLM response: {e}")
+    except json.JSONDecodeError as e:
+        print(f"JSON decoding error in LLM response: {e}. Response: {raw_response}")
         return []
     except Exception as e:
         print(f"Unexpected error in PII detection: {e}")
@@ -182,7 +200,7 @@ def beep_pii_segments(audio: AudioSegment, pii_timestamps: List[Tuple[int, int]]
 def main(audio_file: str, model_path: str, auto_detect: bool, verbose: bool):
     """Detect PII, write to CSV, and mask audio with beeps."""
     SetLogLevel(-1)  # Reduce Vosk logging
-
+    print(audio_file)
     # Validate input audio file
     if not os.path.exists(audio_file):
         print(f"Audio file not found: {audio_file}")

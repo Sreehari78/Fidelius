@@ -5,9 +5,17 @@ from csvhandler import predictheaders, maskobfcsv
 from pdfhandler import predictpdfheaders, maskobfpdf
 import subprocess  # For running external Python scripts
 from flask_cors import CORS
+from run_audio_pii_censor import main
 
 app = Flask(__name__)
-CORS(app)
+# Update CORS configuration to be more permissive during development
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000"],  # Your Next.js frontend URL
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 @app.route("/getcsvheader", methods=['GET', 'POST'])
 def getcsvheader():
@@ -123,10 +131,13 @@ def redact_image_endpoint():
 
 @app.route('/getfolderfiles', methods=['POST'])
 def get_folder_files():
+    print("Received request to get folder files")  # Debug log
     data = request.get_json()
+    print("Request data:", data)  # Debug log
     folder_path = data.get('folderPath')
     
     if not folder_path or not os.path.isdir(folder_path):
+        print(f"Invalid folder path: {folder_path}")  # Debug log
         return jsonify({'error': 'Invalid folder path'}), 400
     
     try:
@@ -134,14 +145,16 @@ def get_folder_files():
         for root, _, filenames in os.walk(folder_path):
             for filename in filenames:
                 full_path = os.path.join(root, filename)
-                if filename.lower().endswith(('.csv', '.pdf', '.png', '.jpg', '.jpeg')):
+                if filename.lower().endswith(('.csv', '.pdf', '.png', '.jpg', '.jpeg','.mp3')):
                     files.append(full_path)
         
+        print(f"Found files: {files}")  # Debug log
         if not files:
             return jsonify({'files': [], 'message': 'No supported files found'}), 200
         
         return jsonify({'files': files})
     except Exception as e:
+        print(f"Error processing folder: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
 
@@ -151,16 +164,18 @@ def getaudio():
     New route to process audio files for PII detection and masking.
     """
     data = request.get_json()
-    AUDIO_FILE = "examples\pranav.mp3"  # Replace with your audio file path
+    print(data)
+    AUDIO_FILE = data.get('filePath')
+    print(AUDIO_FILE)  # Replace with your audio file path
     MODEL_PATH = "vosk-model-en-us-0.42-gigaspeech"           # Replace with your Vosk model path
     AUTO_DETECT = True                          # Enable LLM-based automated PII detection
     VERBOSE = True        # Optional, default to False
     
     # Validating input paths
-    if not audio_file_path or not os.path.exists(audio_file_path):
+    if not AUDIO_FILE or not os.path.exists(AUDIO_FILE):
         return jsonify({"error": "Invalid audio file path"}), 400
 
-    if not model_path or not os.path.exists(model_path) or not os.path.isdir(model_path):
+    if not MODEL_PATH or not os.path.exists(MODEL_PATH) or not os.path.isdir(MODEL_PATH):
         return jsonify({"error": "Invalid model directory path"}), 400
 
     try:
@@ -175,14 +190,14 @@ def getaudio():
 
         # Execute the command and capture output
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
+        print(result)
         if result.returncode != 0:
             return jsonify({"error": "Error running PII censoring tool", "details": result.stderr}), 500
-
         # Parse the output (assuming the script provides outputs in a structured format)
         return jsonify({"message": "PII censoring completed successfully", "output": result.stdout})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
+    print("Starting Flask server on http://localhost:5000")  # Debug log
     app.run(debug=True, host='0.0.0.0', port=5000)
