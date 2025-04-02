@@ -358,6 +358,77 @@ export default function HeaderControl() {
             filePath: file.path,
             outputPath: outputPath,
           });
+        } else if (fileType === "pdf") {
+          try {
+            // Step 1: Detect PDF headers (PII entities)
+            console.log("Detecting PDF headers...");
+            console.log(`File path: ${file.path}`);
+            const headersResponse = await callApi("/getpdfheader", {
+              filePath: file.path,
+            });
+
+            if (!headersResponse.headers) {
+              console.log("No headers returned from PDF analysis");
+              continue; // Skip this file and move to next
+            }
+
+            // Filter out empty space entries that might come from backend
+            const piiHeaders = headersResponse.headers.filter(
+              (header: string) => header && header.trim() !== " "
+            );
+
+            if (piiHeaders.length === 0) {
+              console.log("No PII found in PDF");
+              continue; // Skip this file if no PII found
+            }
+
+            // Step 2: Create a masked version (all detected PIIs masked)
+            console.log("Creating masked version...");
+            console.log("piiHeaders:", piiHeaders);
+
+            const maskResponse = await callApi("/maskobfpdf", {
+              filePath: file.path,
+              headers: piiHeaders.map((header: string) => ({
+                name: header,
+                mode: "mask",
+                prompt: "Replace this with #",
+              })),
+            });
+
+            if (maskResponse.output) {
+              // Backend doesn't return filename property, extract it from output path
+              const maskedFilename = maskResponse.output
+                .split("/")
+                .pop()
+                .split("\\")
+                .pop();
+              outputFilesList.push(maskedFilename);
+            }
+
+            // Step 3: Create an obfuscated version (all detected PIIs obfuscated)
+            const obfuscateResponse = await callApi("/maskobfpdf", {
+              filePath: file.path,
+              headers: piiHeaders.map((header: string) => ({
+                name: header,
+                mode: "obfuscate",
+                prompt:
+                  "Replace this with synthetic but realistic looking data of the same type.",
+              })),
+            });
+
+            if (obfuscateResponse.output) {
+              // Extract filename from output path (works for both Unix and Windows paths)
+              const obfuscatedFilename = obfuscateResponse.output
+                .split("/")
+                .pop()
+                .split("\\")
+                .pop();
+              outputFilesList.push(obfuscatedFilename);
+            }
+          } catch (error) {
+            console.log(`Error processing PDF file ${file.path}:`);
+            // Optionally, you could show an error notification to the user here
+          }
         }
 
         if (response?.filename) {

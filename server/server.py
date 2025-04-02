@@ -59,6 +59,7 @@ def getpdfheader():
         return jsonify({'error': 'No file path provided'}), 400
     
     try:
+        print("Received file path:", pfile_path)  # Debugging log
         headers = predictpdfheaders(pfile_path)
         return jsonify({"headers": headers})
     except Exception as e:
@@ -69,6 +70,7 @@ def maskpdf():
     """
     Mask or obfuscate sensitive information in a PDF file.
     """
+    print("Received request to mask PDF")  # Debugging log
     input_data = request.get_json()
     print("Received input data:", input_data)  # Debugging log
 

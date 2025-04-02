@@ -74,9 +74,10 @@ def maskobfpdf(json_data):
             if not text_instances:
                 print(f"No instances of '{original_value}' found on page {page_num + 1}. Skipping.")
                 continue
-
+            isMask = False
             for rect in text_instances:
                 if mode == 'mask':
+                    isMask = True
                     # For mask mode: just black out the original text
                     page.add_redact_annot(rect, fill=(0, 0, 0))  # Black fill only
                     page.apply_redactions()
@@ -93,8 +94,13 @@ def maskobfpdf(json_data):
                     )
 
     # Save the modified PDF
-    modified_pdf_path = os.path.join(os.path.dirname(filepath), "modified_" + os.path.basename(filepath))
-    pdf_document.save(modified_pdf_path)
-    pdf_document.close()
+    if isMask:
+        modified_pdf_path = os.path.join(os.path.dirname(filepath), "..", "pdf_output", "masked_" + os.path.basename(filepath))
+        pdf_document.save(modified_pdf_path)
+        pdf_document.close()
+    else:
+        obfuscated_pdf_path = os.path.join(os.path.dirname(filepath), "..", "pdf_output", "obfuscated_" + os.path.basename(filepath))
+        pdf_document.save(obfuscated_pdf_path)
+        pdf_document.close()
 
     return modified_pdf_path
