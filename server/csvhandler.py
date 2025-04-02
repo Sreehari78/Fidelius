@@ -21,7 +21,7 @@ def maskobfcsv(json_data):
         input_path = os.path.join('..', 'data', filename)  # Fallback to default
     else:
         input_path = os.path.join(input_path, filename)  # Use provided inputPath
-    
+    print(f"Input file path: {input_path}")
     # Validate input file exists
     if not os.path.exists(input_path):
         raise Exception(f"Input file not found: {input_path}")
@@ -57,13 +57,16 @@ def maskobfcsv(json_data):
                 data_string = ','.join(csvCol.astype(str))
                 modified_data_string = chatlocal(instruction, data_string)
                 modified_chunk = modified_data_string.split(',')
-
+                print("Modified Chunk: ", modified_chunk)
                 for x in range(min(len(csvCol), len(modified_chunk))):
                     updated_df.loc[x, column_name] = modified_chunk[x]
     
+    print(updated_df["Address"])
     updated_df = updated_df.iloc[1:]
     os.makedirs(os.path.dirname(csv_output_file), exist_ok=True)
-    updated_df.to_csv(csv_output_file, index=False)
-    
+    print(f"csv_output_file is {csv_output_file}")
+    # updated_df.to_csv(csv_output_file, index=False)
+    # updated_df.to_csv("client\public\Ecommerce-Customers-2-output.csv",index=False)
+    # updated_df.to_csv("client\public\Ecommerce-Customers-output.csv",index=False)
     print(f"Output saved to: {csv_output_file}")
     return csv_output_file

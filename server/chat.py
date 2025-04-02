@@ -25,7 +25,7 @@ from pydantic import BaseModel
 class ResponseFormat(BaseModel):
     changed_names: list[str]
 def chatlocal(system,content):
-    system="You are a bot that ofuscates by changing the names by: "+system +"Return only changed names and nothing else as a comma seperated list"
+    system="You are a bot that ofuscates by changing the values by: "+system +"Return only changed values in the original fomrat and nothing else as a comma seperated list"
     # url = "http://127.0.0.1:1234/v1/chat/completions"
     # headers = {
     #     "Content-Type": "application/json"
@@ -48,7 +48,7 @@ def chatlocal(system,content):
     # return response.json()["choices"][0]["message"]["content"]
     from openai import OpenAI
     import json
-    client = OpenAI(api_key = "")
+    client = OpenAI(api_key="")
 
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
@@ -69,7 +69,3 @@ def chatlocal(system,content):
     response = json.loads(completion.choices[0].message.content)["changed_names"]
     comma_separated_string = ",".join(response)
     return comma_separated_string
-
-
-
-

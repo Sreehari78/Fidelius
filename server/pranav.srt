@@ -1,0 +1,28 @@
+1
+00:00:00,000 --> 00:00:05,000
+Hi, my name is Frenel. I'm a fourth year computer science student at the College of Engineering Trivandrum.
+
+2
+00:00:05,000 --> 00:00:09,000
+My hobbies are hackathons and playing football.
+
+3
+00:00:09,000 --> 00:00:15,000
+I got a job at Dissern Security and I'll be joining in May of 2025
+
+4
+00:00:15,000 --> 00:00:20,000
+and I'll also be graduating in June or July of 2025.
+
+5
+00:00:20,000 --> 00:00:26,000
+With my degree in computer science, I went to school in Trivandrum in Kerala at Sarvodeh, Vidyalaya.
+
+6
+00:00:26,000 --> 00:00:30,000
+But I also grew up in the U.S. and I spent around eight years in the U.S.
+
+7
+00:00:30,000 --> 00:00:34,000
+And this is a voice clone for PlayHT.
+
