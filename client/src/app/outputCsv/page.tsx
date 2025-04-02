@@ -108,60 +108,64 @@ export default function MultiFileCsvViewer() {
   if (loading) {
     return (
       <div className='flex justify-center items-center h-screen'>
-        <Loader2 className='w-8 h-8 animate-spin' />
+        <Loader2 className='w-8 h-8 animate-spin text-blue-500' />
       </div>
     );
   }
 
   return (
-    <div className='container mx-auto p-4'>
+    <div className='container mx-auto p-4 max-w-6xl'>
       <header className='mb-8 text-center'>
-        <h1 className='text-3xl font-bold mb-2'>Modified Files Viewer</h1>
-        <p className='text-gray-600'>Viewing modified CSV files</p>
+        <h1 className='text-3xl font-bold mb-2 text-gray-100'>
+          Modified Files Viewer
+        </h1>
+        <p className='text-gray-400'>Viewing modified CSV files</p>
       </header>
 
       {csvDatasets.length === 0 ? (
         <div className='text-center'>
-          <p className='text-gray-600'>
+          <p className='text-gray-400'>
             No modified files available to display.
           </p>
         </div>
       ) : (
         <>
-          <div className='mb-4'>
-            <label className='mr-2'>Select File:</label>
-            <select
-              value={selectedFileIndex}
-              onChange={(e) => {
-                const newIndex = Number(e.target.value);
-                setSelectedFileIndex(newIndex);
-                const newVisibility = csvDatasets[newIndex].headers.reduce(
-                  (acc, header) => {
-                    acc[header] = true;
-                    return acc;
-                  },
-                  {} as Record<string, boolean>
-                );
-                setColumnVisibility(newVisibility);
-              }}
-              className='border p-2 rounded text-black'>
-              {csvDatasets.map((dataset, index) => (
-                <option key={index} value={index}>
-                  {dataset.filename}
-                </option>
-              ))}
-            </select>
+          <div className='mb-6 p-6 rounded-lg bg-white/5 backdrop-blur-sm'>
+            <div className='flex items-center gap-2'>
+              <label className='text-gray-300 mr-2'>Select File:</label>
+              <select
+                value={selectedFileIndex}
+                onChange={(e) => {
+                  const newIndex = Number(e.target.value);
+                  setSelectedFileIndex(newIndex);
+                  const newVisibility = csvDatasets[newIndex].headers.reduce(
+                    (acc, header) => {
+                      acc[header] = true;
+                      return acc;
+                    },
+                    {} as Record<string, boolean>
+                  );
+                  setColumnVisibility(newVisibility);
+                }}
+                className='flex-1 px-4 py-2.5 rounded-md text-gray-100 bg-black/20 border border-white/10 focus:outline-none focus:border-blue-500'>
+                {csvDatasets.map((dataset, index) => (
+                  <option key={index} value={index} className='bg-gray-800'>
+                    {dataset.filename}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className='overflow-x-auto'>
-            <table className='min-w-full border-collapse border border-gray-200'>
+          <div className='overflow-x-auto rounded-lg bg-white/5 backdrop-blur-sm'>
+            <table className='min-w-full border-collapse'>
               <thead>
                 {memoizedTable.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className='px-4 py-2 text-left text-sm font-medium text-gray-50 border'>
+                        className='px-4 py-3 text-left text-sm font-medium text-gray-300 border-b border-white/5 bg-black/10'>
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
@@ -173,11 +177,11 @@ export default function MultiFileCsvViewer() {
               </thead>
               <tbody>
                 {memoizedTable.getRowModel().rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr key={row.id} className='hover:bg-white/5'>
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className='px-4 py-2 text-sm text-gray-50 border'>
+                        className='px-4 py-3 text-sm text-gray-300 border-b border-white/10'>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()
@@ -190,19 +194,19 @@ export default function MultiFileCsvViewer() {
             </table>
           </div>
 
-          <div className='mt-4 flex justify-between'>
+          <div className='mt-6 flex justify-between items-center p-4 rounded-lg bg-white/5 backdrop-blur-sm'>
             <button
-              className='px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50'
+              className='px-4 py-2 rounded-md bg-blue-500/80 text-white hover:bg-blue-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}>
               Previous
             </button>
-            <span>
+            <span className='text-gray-300'>
               Page {table.getState().pagination.pageIndex + 1} of{" "}
               {table.getPageCount()}
             </span>
             <button
-              className='px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50'
+              className='px-4 py-2 rounded-md bg-blue-500/80 text-white hover:bg-blue-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}>
               Next

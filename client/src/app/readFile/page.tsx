@@ -410,34 +410,34 @@ export default function HeaderControl() {
   const isProcessing = isUploading || processingQueue.length > 0;
 
   return (
-    <div className='container mx-auto p-4 max-w-4xl'>
+    <div className='container mx-auto p-4 max-w-4xl bg-gray-900'>
       <header className='mb-8 text-center'>
         <h1 className='text-3xl font-bold mb-2 flex justify-center'>
           <Shield className='w-16 h-16 text-blue-600 mr-2' />
-          <span className='text-6xl font-bold text-gray-200'>Fidelius</span>
+          <span className='text-6xl font-bold text-gray-100'>Fidelius</span>
         </h1>
         <p className='text-gray-600'></p>
       </header>
 
-      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
-        <h2 className='text-xl font-semibold mb-4 text-black'>
+      <div className='mb-6 p-4 border rounded-lg bg-gray-800 border-gray-700'>
+        <h2 className='text-xl font-semibold mb-4 text-gray-100'>
           Process Files from Folder
         </h2>
         <div className='flex items-center gap-2'>
-          <div className='flex-1 text-black'>
+          <div className='flex-1 text-gray-700'>
             <input
               type='text'
               value={folderPath}
               onChange={(e) => setFolderPath(e.target.value)}
               placeholder='Enter folder path (e.g., C:\Documents\Data)'
-              className='w-full px-3 py-2 border rounded text-sm'
+              className='w-full px-3 py-2 border rounded text-sm text-gray-100 bg-gray-700 border-gray-600 placeholder-gray-400'
               disabled={isFolderProcessing}
             />
           </div>
           <button
             onClick={processFolderFiles}
             disabled={isFolderProcessing || !folderPath.trim()}
-            className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'>
+            className='px-4 py-2 bg-blue-600 text-gray-100 rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'>
             {isFolderProcessing ? (
               <>
                 <Loader2 className='w-4 h-4 animate-spin' />
@@ -452,22 +452,22 @@ export default function HeaderControl() {
           </button>
         </div>
         {folderError && (
-          <p className='mt-2 text-sm text-red-500'>{folderError}</p>
+          <p className='mt-2 text-sm text-red-400'>{folderError}</p>
         )}
       </div>
 
-      <div className='mb-6 p-4 border rounded-lg bg-gray-50'>
-        <h2 className='text-xl font-semibold mb-4 text-black'>
+      <div className='mb-6 p-4 border rounded-lg bg-gray-800 border-gray-700'>
+        <h2 className='text-xl font-semibold mb-4 text-gray-100'>
           Specify Output Folder
         </h2>
         <div className='flex items-center gap-2'>
-          <div className='flex-1 text-black'>
+          <div className='flex-1 text-gray-700'>
             <input
               type='text'
               value={outputPath}
               onChange={handleOutputPathChange}
               placeholder='Enter output folder path (e.g., C:\Documents\Output)'
-              className='w-full px-3 py-2 border rounded text-sm'
+              className='w-full px-3 py-2 border rounded text-sm text-gray-100 bg-gray-700 border-gray-600 placeholder-gray-400'
             />
           </div>
           <div className='flex items-center text-sm text-gray-500'>
@@ -478,9 +478,9 @@ export default function HeaderControl() {
       </div>
 
       <div className='relative flex items-center mb-6'>
-        <div className='flex-grow border-t border-gray-300'></div>
+        <div className='flex-grow border-t border-gray-700'></div>
         <span className='flex-shrink mx-4 text-gray-400'>OR</span>
-        <div className='flex-grow border-t border-gray-300'></div>
+        <div className='flex-grow border-t border-gray-700'></div>
       </div>
 
       {files.length > 0 && (
@@ -496,10 +496,10 @@ export default function HeaderControl() {
                   onClick={() => (isProcessed ? switchActiveFile(index) : null)}
                   className={`px-3 py-1 rounded-md text-sm flex items-center ${
                     activeFileIndex === index
-                      ? "bg-blue-500 text-white"
+                      ? "bg-blue-600 text-gray-100"
                       : isProcessed
-                      ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      : "bg-gray-100 text-gray-500 cursor-default"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-800 text-gray-400 cursor-default"
                   }`}
                   disabled={!isProcessed}>
                   {isProcessing && (
@@ -507,7 +507,7 @@ export default function HeaderControl() {
                   )}
                   {file.name}
                   {isProcessed && (
-                    <Check className='w-3 h-3 ml-1 text-green-500' />
+                    <Check className='w-3 h-3 ml-1 text-green-400' />
                   )}
                 </button>
               );
@@ -515,7 +515,7 @@ export default function HeaderControl() {
           </div>
 
           {isProcessing && (
-            <div className='text-sm text-blue-500 mb-2'>
+            <div className='text-sm text-blue-400 mb-2'>
               <Loader2 className='w-4 h-4 mr-1 inline animate-spin' />
               Processing files... ({processingQueue.length} remaining)
             </div>
@@ -539,26 +539,30 @@ export default function HeaderControl() {
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center cursor-pointer transition-colors ${
           isDragActive
-            ? "border-green-500 bg-green-200"
-            : "border-gray-300 hover:border-green-500 hover:bg-green-200"
+            ? "border-blue-500 bg-gray-800"
+            : "border-gray-700 hover:border-blue-500 hover:bg-gray-800"
         }`}>
         <input {...getInputProps()} />
         <div className='flex flex-col items-center justify-center space-y-4'>
           {isProcessing ? (
             <Loader2 className='w-12 h-12 text-blue-500 animate-spin' />
           ) : (
-            <Upload className='w-12 h-12 text-gray-400' />
+            <Upload className='w-12 h-12 text-gray-500' />
           )}
           {isProcessing ? (
-            <p className='text-lg font-medium'>Processing files...</p>
+            <p className='text-lg font-medium text-gray-300'>
+              Processing files...
+            </p>
           ) : isDragActive ? (
-            <p className='text-lg font-medium'>Drop the files here ...</p>
+            <p className='text-lg font-medium text-gray-300'>
+              Drop the files here ...
+            </p>
           ) : (
             <>
-              <p className='text-lg font-medium text-gray-500'>
+              <p className='text-lg font-medium text-gray-300'>
                 Drag 'n' drop files here, or click to select files
               </p>
-              <p className='text-sm text-gray-500'>
+              <p className='text-sm text-gray-300'>
                 Supported files:
                 <br />
                 • Documents: CSV, PDF
@@ -581,16 +585,16 @@ export default function HeaderControl() {
               <table className='min-w-full'>
                 <thead>
                   <tr>
-                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200'>
+                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200 bg-gray-800'>
                       Check
                     </th>
-                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200'>
+                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200 bg-gray-800'>
                       Header
                     </th>
-                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200'>
+                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200 bg-gray-800'>
                       Mode
                     </th>
-                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200'>
+                    <th className='px-4 py-2 text-left text-sm font-medium text-gray-200 bg-gray-800'>
                       Prompt
                     </th>
                   </tr>
@@ -608,52 +612,54 @@ export default function HeaderControl() {
                       <tr
                         key={column}
                         className={control.visible ? "" : "opacity-50"}>
-                        <td className='px-4 py-2 text-sm text-gray-900'>
+                        <td className='px-4 py-2 text-sm text-gray-300'>
                           <button
                             onClick={() => toggleColumnVisibility(column)}
-                            className='p-1 rounded-full hover:bg-gray-200'
+                            className='p-1 rounded-full hover:bg-gray-700'
                             aria-label={
                               control.visible ? "Hide column" : "Show column"
                             }>
                             {control.visible ? (
-                              <Check className='w-5 h-5 text-green-500' />
+                              <Check className='w-5 h-5 text-green-400' />
                             ) : (
-                              <X className='w-5 h-5 text-red-500' />
+                              <X className='w-5 h-5 text-red-400' />
                             )}
                           </button>
                         </td>
-                        <td className='px-4 py-2 text-sm text-gray-200'>
+                        <td className='px-4 py-2 text-sm text-gray-300'>
                           {column.replace(/^\d+\.\s/, "")}
                         </td>
-                        <td className='px-4 py-2 text-sm text-gray-200'>
+                        <td className='px-4 py-2 text-sm text-gray-300'>
                           <div className='flex items-center space-x-4'>
                             <label className='flex items-center'>
                               <input
                                 type='radio'
                                 checked={control.mode === "mask"}
                                 onChange={() => setMode(column, "mask")}
-                                className='form-radio h-4 w-4 text-blue-600'
+                                className='form-radio h-4 w-4 text-blue-600 bg-gray-700 border-gray-600'
                               />
-                              <span className='ml-2'>Mask</span>
+                              <span className='ml-2 text-gray-300'>Mask</span>
                             </label>
                             <label className='flex items-center'>
                               <input
                                 type='radio'
                                 checked={control.mode === "obfuscate"}
                                 onChange={() => setMode(column, "obfuscate")}
-                                className='form-radio h-4 w-4 text-blue-600'
+                                className='form-radio h-4 w-4 text-blue-600 bg-gray-700 border-gray-600'
                               />
-                              <span className='ml-2'>Obfuscate</span>
+                              <span className='ml-2 text-gray-300'>
+                                Obfuscate
+                              </span>
                             </label>
                           </div>
                         </td>
-                        <td className='px-4 py-2 text-sm text-gray-900'>
+                        <td className='px-4 py-2 text-sm text-gray-300'>
                           <input
                             type='text'
                             value={control.prompt}
                             onChange={(e) => setPrompt(column, e.target.value)}
                             placeholder='Enter prompt'
-                            className='w-full px-2 py-1 text-sm border rounded'
+                            className='w-full px-2 py-1 text-sm border rounded text-gray-100 bg-gray-700 border-gray-600'
                           />
                         </td>
                       </tr>
@@ -668,19 +674,19 @@ export default function HeaderControl() {
                 disabled={
                   isSubmitting || files.length === 0 || !outputPath.trim()
                 }
-                className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'>
+                className='px-4 py-2 bg-blue-600 text-gray-100 rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'>
                 {isSubmitting ? "Submitting..." : "Submit"}
               </button>
             </div>
             {!outputPath.trim() && files.length > 0 && (
-              <p className='mt-2 text-sm text-red-500'>
+              <p className='mt-2 text-sm text-red-400'>
                 Please specify an output folder before submitting.
               </p>
             )}
             {jsonOutput && (
               <div className='mt-4'>
                 <h3 className='text-lg font-semibold mb-2'>JSON Output:</h3>
-                <pre className='p-4 rounded overflow-x-auto text-gray-200 bg-gray-800'>
+                <pre className='p-4 rounded overflow-x-auto text-gray-300 bg-gray-800'>
                   {jsonOutput}
                 </pre>
               </div>
@@ -688,7 +694,7 @@ export default function HeaderControl() {
             {submitResponse && (
               <div className='mt-4'>
                 <h3 className='text-lg font-semibold mb-2'>Server Response:</h3>
-                <pre className='p-4 rounded overflow-x-auto text-gray-200 bg-gray-800'>
+                <pre className='p-4 rounded overflow-x-auto text-gray-300 bg-gray-800'>
                   {submitResponse}
                 </pre>
               </div>
