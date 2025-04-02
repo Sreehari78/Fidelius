@@ -12,3 +12,9 @@ pandas
 pydub 
 vosk 
 argparse
+presidio-image-redactor>=2.2.33
+Pillow>=10.0.0
+pytesseract>=0.3.10
+spacy>=3.0.0 
+easyocr
+

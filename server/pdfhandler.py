@@ -3,97 +3,98 @@ import csv
 import pandas as pd
 import os
 import PyPDF2
+import fitz # PyMuPDF
 data_dict = {}
+
+
 def predictpdfheaders(filename):
-    # Create the full file path using the script's location
-    print(filename)
     filepath = filename
-    
-    # Dictionary to hold PII data for each type (dynamically discovered)
     pii_items = []
-    # Open the PDF file
+    data_dict.clear()  # Clear previous data to avoid conflicts
+
     with open(filepath, 'rb') as file:
         reader = PyPDF2.PdfReader(file)
         num_pages = len(reader.pages)
 
-        # Process each page
         for page_num in range(num_pages):
             page = reader.pages[page_num]
             text = page.extract_text()
-            print(text)     
-            systemprompt="You are a tool to identify types of PII data in a pdf text document. Return only a list of all the types of PII present. example Name: Mustafa Abdul \n Address: 2201 C Street NW \n Phone No.: 202-555-0129"
-            # Send text to chatlocal() to identify PII data
-            detected_pii = chatlocal(systemprompt,text + "from this text identify all the types of PII data present eg. email, phone number, name, address etc. Do not return any other text or values.")
-            print(detected_pii)
-            lines = detected_pii.strip().split('\n')
-            # Split the returned PII string by common delimiters (spaces, newlines, commas)
+            systemprompt = "You are a tool to identify types of PII data in a pdf text document. Return only a list of all the types of PII present in the format 'headername: value' for each PII data, separated by commas."
+            detected_pii = chatlocal(systemprompt, text + " from this text identify all the types of PII data present eg. email, phone number, name, address etc. Do not return any other text or values.")
+            print("Detected PII:\n" + detected_pii)
+
+            # Split by newlines instead of commas for consistency
+            lines = detected_pii.strip().split(',')
             for line in lines:
-                # Split each line by the colon and strip whitespace
-                key, value = line.split(':', 1)
-                
-                key = key.strip()
-                value = value.strip()
-
-                # Split multiple values by commas and strip whitespace from each value
-                values = [v.strip() for v in value.split(',')]
-
-                # Check if the key already exists in the dictionary
-                if key in data_dict:
-                    data_dict[key].extend(values)  # Append new values to the existing list
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    # Store as a single string, not a list
+                    data_dict[key] = value
                 else:
-                    data_dict[key] = values  # Create a new list for the key
+                    print(f"Skipping line (no colon found): {line}")
 
-            # Extracting only the text before the colon (key names) for display
-            pii_items = [line.split(':')[0].strip() for line in lines]
+            pii_items = [line.split(':')[0].strip() for line in lines if ':' in line]
+    
+    print("Data dictionary:")
     print(data_dict)
-    return [' ']+pii_items
+    return [' '] + pii_items
 
-from PyPDF2 import PdfReader, PdfWriter
+
 def maskobfpdf(json_data):
-    filepath=os.path.dirname(os.path.abspath(__file__))+"\\"+json_data['fileName']
-    modified_dict = {}
-    reader = PdfReader(filepath)
-    writer = PdfWriter()
-    modified_value = ""
-    # Loop through each header in the input
+    filepath = json_data['filePath']
+    pdf_document = fitz.open(filepath)
+
+    # Process each header/field
     for field in json_data['headers']:
         name = field['name']
         mode = field['mode']
         prompt = field.get('prompt', "")
-        
-        # Get the original value from the provided data dictionary
+
+        # Get the original value from data_dict
         original_value = data_dict.get(name, "")
-        
-        # Pass the value through the chatlocal() function to modify it
-        if mode=='obfuscate':
-            systemprompt="You are a tool that can modify the following data. Return the modified comma seperated values only and no other texts or information."
-            modified_value = chatlocal(systemprompt,original_value+prompt)
-            print(modified_value)
-        elif mode=='mask':
-            modified_value = "#" * len(original_value)
+        print(f"Original value for '{name}': {original_value}")
 
-        # Store the modified value in a new dictionary
-        modified_dict[name] = modified_value
+        if not original_value or not isinstance(original_value, str):
+            print(f"Invalid original value for '{name}'. Skipping.")
+            continue
 
-    #Replace the original values in PDF with modified values
-    # Process each page of the PDF
-    for page_num in range(len(reader.pages)):
-        page = reader.pages[page_num]
-        text = page.extract_text()
-        
-        # Replace original values with modified ones in the text
-        for name, modified_value in modified_dict.items():
-            text = text.replace(data_dict.get(name, ""), modified_value)
-            print(text)
-        # Add modified text back to the page (currently PyPDF2 doesn’t support text re-insertion)
-        # You would need a more advanced library like `pdfplumber` for this or use annotations
-        
-        # For now, just add the original page to the writer
-        writer.add_page(page)
+        # Modify the value based on mode (only for obfuscate)
+        if mode == 'obfuscate':
+            systemprompt = "You are a tool that can modify the following data. Return the modified value only."
+            modified_value = chatlocal(systemprompt, original_value + " " + prompt)
+        # No modified_value needed for mask mode since we just black it out
 
-    # Save the modified PDF to a new file
-    modified_pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modified_" + os.path.basename(filepath))
-    with open(modified_pdf_path, "wb") as output_pdf:
-        writer.write(output_pdf)
+        # Process each page to replace this field's value
+        for page_num in range(len(pdf_document)):
+            page = pdf_document[page_num]
+            text_instances = page.search_for(original_value)
+
+            if not text_instances:
+                print(f"No instances of '{original_value}' found on page {page_num + 1}. Skipping.")
+                continue
+
+            for rect in text_instances:
+                if mode == 'mask':
+                    # For mask mode: just black out the original text
+                    page.add_redact_annot(rect, fill=(0, 0, 0))  # Black fill only
+                    page.apply_redactions()
+                elif mode == 'obfuscate':
+                    # For obfuscate mode: clear with white and write new text in black
+                    page.add_redact_annot(rect, fill=(1, 1, 1))  # White fill to clear
+                    page.apply_redactions()
+                    adjusted_position = rect.tl + fitz.Point(0, rect.height * 0.8)
+                    page.insert_text(
+                        adjusted_position,
+                        modified_value,
+                        fontsize=12,
+                        color=(0, 0, 0)  # Black text for clean look
+                    )
+
+    # Save the modified PDF
+    modified_pdf_path = os.path.join(os.path.dirname(filepath), "modified_" + os.path.basename(filepath))
+    pdf_document.save(modified_pdf_path)
+    pdf_document.close()
 
     return modified_pdf_path

@@ -69,6 +69,7 @@ export default function HeaderControl() {
   }, [processingQueue, isUploading, files]);
 
   const onDrop = async (acceptedFiles: File[]) => {
+    console.log("Accepted files:", acceptedFiles);
     if (acceptedFiles.length === 0) return;
 
     const startIdx = files.length;
@@ -81,6 +82,17 @@ export default function HeaderControl() {
 
     console.log("Selected files:", newFiles);
     setFiles((prev) => [...prev, ...newFiles]);
+
+    // Automatically set folderPath based on the first file's path
+    if (newFiles.length > 0) {
+      const firstFilePath = newFiles[0].path;
+      const folderPath = firstFilePath.substring(
+        0,
+        firstFilePath.lastIndexOf("\\")
+      );
+      console.log("Derived folder path:", folderPath);
+      setFolderPath(folderPath);
+    }
 
     if (activeFileIndex === -1) {
       setActiveFileIndex(startIdx);
@@ -274,6 +286,7 @@ export default function HeaderControl() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      console.log("Folder Path:", folderPath);
       const outputFilesList: string[] = [];
 
       for (let i = 0; i < files.length; i++) {
@@ -292,7 +305,10 @@ export default function HeaderControl() {
           outputPath: outputPath,
           inputPath: folderPath, // Added inputPath from folderPath
         };
-        console.log(`Output for ${file.name}:`, output);
+        console.log(
+          `Payload for ${file.name}:`,
+          JSON.stringify(output, null, 2)
+        );
 
         let response;
         if (file.name.split(".").pop() === "csv") {
